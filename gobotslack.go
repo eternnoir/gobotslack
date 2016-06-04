@@ -89,7 +89,7 @@ func (sa *SlackAdapter) Send(text string) error {
 	log.Infof("[SlackAdapter] Get new text to send.%s", text, sa.defaultChannel)
 	if ch, ok := sa.channelMap[sa.defaultChannel]; ok {
 		log.Infof("[SlackAdapter] Send new text %s. To %s", text, ch.Name)
-		_, _, err := sa.api.PostMessage("#"+ch.Name, text, slack.PostMessageParameters{AsUser: true})
+		_, _, err := sa.api.PostMessage("#"+ch.Name, text, slack.PostMessageParameters{AsUser: true, Parse: "full"})
 		if err != nil {
 			log.Error(err)
 		}
