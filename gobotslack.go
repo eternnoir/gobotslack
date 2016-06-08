@@ -99,6 +99,20 @@ func (sa *SlackAdapter) Send(text string) error {
 	return nil
 }
 
+func (sa *SlackAdapter) SendToChat(text, chatroom string) error {
+	log.Infof("[SlackAdapter] Get new text to send.%s. ChatRoom", text, chatroom)
+	if ch, ok := sa.channelMap[chatroom]; ok {
+		log.Infof("[SlackAdapter] Send new text %s. To %s", text, ch.Name)
+		_, _, err := sa.api.PostMessage("#"+ch.Name, text, slack.PostMessageParameters{AsUser: true, Parse: "full"})
+		if err != nil {
+			log.Error(err)
+		}
+	} else {
+		log.Errorf("[SlackAdapter] Channel name %s not found.", chatroom)
+	}
+	return nil
+}
+
 func (sa *SlackAdapter) Reply(orimessage *payload.Message, text string) error {
 	log.Infof("Get Replay message. Origin message is %s. Text %s", orimessage.Text, text)
 	ev := orimessage.Payload.(*slack.MessageEvent)
