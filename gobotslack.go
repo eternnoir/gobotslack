@@ -108,7 +108,7 @@ func (sa *SlackAdapter) SendToChat(text, chatroom string) error {
 }
 
 func (sa *SlackAdapter) sendmessage(text, chatroom string) {
-	_, _, err := sa.api.PostMessage(chatroom, text, slack.PostMessageParameters{AsUser: true, Parse: "full"})
+	_, _, err := sa.api.PostMessage(chatroom, text, slack.PostMessageParameters{AsUser: true})
 	if err != nil {
 		log.Error(err)
 	}
