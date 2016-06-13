@@ -89,10 +89,7 @@ func (sa *SlackAdapter) Send(text string) error {
 	log.Infof("[SlackAdapter] Get new text to send.%s", text, sa.defaultChannel)
 	if ch, ok := sa.channelMap[sa.defaultChannel]; ok {
 		log.Infof("[SlackAdapter] Send new text %s. To %s", text, ch.Name)
-		_, _, err := sa.api.PostMessage("#"+ch.Name, text, slack.PostMessageParameters{AsUser: true, Parse: "full"})
-		if err != nil {
-			log.Error(err)
-		}
+		sa.sendmessage(text, "#"+ch.Name)
 	} else {
 		log.Errorf("[SlackAdapter] Channel name %s not found.", sa.defaultChannel)
 	}
@@ -103,21 +100,24 @@ func (sa *SlackAdapter) SendToChat(text, chatroom string) error {
 	log.Infof("[SlackAdapter] Get new text to send.%s. ChatRoom", text, chatroom)
 	if ch, ok := sa.channelMap[chatroom]; ok {
 		log.Infof("[SlackAdapter] Send new text %s. To %s", text, ch.Name)
-		_, _, err := sa.api.PostMessage("#"+ch.Name, text, slack.PostMessageParameters{AsUser: true, Parse: "full"})
-		if err != nil {
-			log.Error(err)
-		}
+		sa.sendmessage(text, "#"+ch.Name)
 	} else {
 		log.Errorf("[SlackAdapter] Channel name %s not found.", chatroom)
 	}
 	return nil
 }
 
+func (sa *SlackAdapter) sendmessage(text, chatroom string) {
+	_, _, err := sa.api.PostMessage(chatroom, text, slack.PostMessageParameters{AsUser: true, Parse: "full"})
+	if err != nil {
+		log.Error(err)
+	}
+}
+
 func (sa *SlackAdapter) Reply(orimessage *payload.Message, text string) error {
 	log.Infof("Get Replay message. Origin message is %s. Text %s", orimessage.Text, text)
 	ev := orimessage.Payload.(*slack.MessageEvent)
-	resMsg := sa.rtm.NewOutgoingMessage(text, ev.Channel)
-	sa.rtm.SendMessage(resMsg)
+	sa.sendmessage(text, ev.Channel)
 	return nil
 }
 
@@ -136,18 +136,9 @@ Loop:
 				// Ignore hello
 
 			case *slack.ConnectedEvent:
-				fmt.Println("Infos:", ev.Info)
-				fmt.Println("Connection counter:", ev.ConnectionCount)
-				// Replace #general with your Channel ID
-				rtm.SendMessage(rtm.NewOutgoingMessage("Hello world", "#general"))
-
+				// Ingnore
 			case *slack.MessageEvent:
-				log.Infof("[SlackAdapter] Get message %#v", ev)
-				msg := &payload.Message{}
-				msg.SourceAdapter = AdapterName
-				msg.Text = ev.Msg.Text
-				msg.Payload = ev
-				sa.bot.Receive(msg)
+				go sa.processNewMessage(ev)
 
 			case *slack.PresenceChangeEvent:
 				fmt.Printf("Presence Change: %v\n", ev)
@@ -169,5 +160,35 @@ Loop:
 			}
 		}
 	}
+}
 
+func (sa *SlackAdapter) processNewMessage(ev *slack.MessageEvent) {
+	log.Infof("[SlackAdapter] Get message %#v", ev)
+	msg := &payload.Message{}
+	msg.SourceAdapter = AdapterName
+	msg.Text = ev.Msg.Text
+	msg.Payload = ev
+	fUser, err := sa.newFromUser(ev)
+	if err != nil {
+		log.Errorf("[%s] Get User %s information fail. %s", AdapterName, ev.User, err)
+		return
+	}
+	msg.FromUser = fUser
+	sa.bot.Receive(msg)
+}
+
+func (sa *SlackAdapter) newFromUser(env *slack.MessageEvent) (*payload.User, error) {
+	log.Debugf("[%s] Get %s user inforamtion.", AdapterName, env.User)
+	slackUser, err := sa.api.GetUserInfo(env.User)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("[%s] Get %s User information done. %#v", AdapterName, env.User, slackUser)
+
+	user := &payload.User{}
+	user.Email = slackUser.RealName
+	user.FullName = slackUser.RealName
+	user.Id = slackUser.ID
+	user.Name = slackUser.Name
+	return user, nil
 }
